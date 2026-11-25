@@ -1,0 +1,167 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Website</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif}
+  body{background:#0f0f1a;color:#fff;padding-bottom:120px}
+  header{padding:20px 30px;display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:26px} header h1 span{color:#a855f7}
+  .container{padding:0 30px}
+  h2{margin:25px 0 15px;font-size:22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}
+  .card{background:#1c1c2e;border-radius:16px;padding:15px;cursor:pointer;transition:0.3s}
+  .card:hover{transform:translateY(-5px);background:#2a2a44}
+  .card img{width:100%;height:150px;object-fit:cover;border-radius:12px}
+  .card h3{margin:10px 0 4px} .card p{color:#aaa;font-size:14px}
+  .artist{display:flex;gap:15px;flex-wrap:wrap}
+  .artist-card{text-align:center;background:#1c1c2e;padding:15px;border-radius:16px;width:150px;cursor:pointer}
+  .artist-card img{width:90px;height:90px;border-radius:50%;object-fit:cover}
+  .artist-card h4{margin-top:8px}
+
+  /* Waveform */
+  .wave{display:flex;align-items:center;gap:3px;height:30px;margin-top:10px}
+  .wave span{width:4px;background:#a855f7;border-radius:2px;height:8px}
+  .wave.playing span{animation:wave 0.8s ease-in-out infinite}
+  .wave.playing span:nth-child(2n){animation-delay:0.2s}
+  .wave.playing span:nth-child(3n){animation-delay:0.4s}
+  @keyframes wave{0%,100%{height:8px}50%{height:28px}}
+
+  /* Player Bar */
+  .player{position:fixed;bottom:0;left:0;right:0;background:#1c1c2e;border-top:1px solid #333;padding:12px 25px;display:flex;align-items:center;gap:20px;z-index:100}
+  .player img{width:55px;height:55px;border-radius:10px;object-fit:cover}
+  .song-info{width:180px} .song-info h4{font-size:15px} .song-info p{font-size:13px;color:#aaa}
+  .controls{display:flex;align-items:center;gap:15px}
+  .controls button{background:#a855f7;border:none;color:#fff;width:42px;height:42px;border-radius:50%;font-size:18px;cursor:pointer}
+  .controls button:hover{background:#9333ea}
+  .progress-box{flex:1;display:flex;align-items:center;gap:10px;font-size:12px;color:#aaa}
+  input[type=range]{flex:1;accent-color:#a855f7;cursor:pointer}
+  .volume-box{display:flex;align-items:center;gap:8px;width:150px}
+  @media(max-width:700px){.volume-box,.song-info p{display:none}}
+</style>
+</head>
+<body>
+
+
+
+<div class="container">
+  <h2>Featured Albums</h2>
+  <div class="grid" id="albumGrid"></div>
+
+  <h2>Curated Playlists</h2>
+  <div class="grid" id="playlistGrid"></div>
+
+  <h2>Artist Profiles</h2>
+  <div class="artist" id="artistGrid"></div>
+</div>
+
+<!-- Persistent Audio Player Bar -->
+<div class="player">
+  <img id="currentImg" src="https://picsum.photos/200?1">
+  <div class="song-info"><h4 id="currentTitle">Select a song</h4><p id="currentArtist">Pynexia Music</p></div>
+  <div class="controls">
+    <button id="prevBtn">⏮</button>
+    <button id="playBtn">▶</button>
+    <button id="nextBtn">⏭</button>
+  </div>
+  <div class="progress-box">
+    <span id="currentTime">0:00</span>
+    <input type="range" id="seekBar" value="0" min="0" max="100">
+    <span id="duration">0:00</span>
+  </div>
+  <div class="volume-box">🔊 <input type="range" id="volumeBar" min="0" max="1" step="0.01" value="0.7"></div>
+</div>
+
+<audio id="audioPlayer"></audio>
+
+<script>
+const songs = [
+  {title:"Tujh Mein Rab Dikhta Hai", artist:"Roop Kumar Rathod", img:"https://picsum.photos/200?1", src:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", playlist:"Bollywood Hits"},
+  {title:"Shape of You", artist:"Ed Sheeran", img:"https://picsum.photos/200?2", src:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", playlist:"Top Global"},
+  {title:"Vaathi Coming", artist:"Anirudh", img:"https://picsum.photos/200?3", src:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", playlist:"Tamil Mass"},
+  {title:"Chill Vibes", artist:"A.R. Rahman", img:"https://picsum.photos/200?4", src:"https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", playlist:"Lo-Fi Chill"},
+];
+
+const artists = [
+  {name:"Anirudh", img:"https://i.pravatar.cc/150?img=12"},
+  {name:"A.R. Rahman", img:"https://i.pravatar.cc/150?img=13"},
+  {name:"Ed Sheeran", img:"https://i.pravatar.cc/150?img=14"},
+  {name:"Shreya Ghoshal", img:"https://i.pravatar.cc/150?img=47"},
+];
+
+const audio = document.getElementById('audioPlayer');
+const playBtn = document.getElementById('playBtn');
+const seekBar = document.getElementById('seekBar');
+const volumeBar = document.getElementById('volumeBar');
+let currentIndex = 0;
+let isPlaying = false;
+
+function formatTime(sec){ let m=Math.floor(sec/60); let s=Math.floor(sec%60); return m+":"+(s<10?"0"+s:s); }
+
+// Render Albums
+document.getElementById('albumGrid').innerHTML = songs.map((s,i)=>`
+  <div class="card" onclick="playSong(${i})">
+    <img src="${s.img}"><h3>${s.title}</h3><p>${s.artist}</p>
+    <div class="wave" id="wave-${i}"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+  </div>`).join('');
+
+// Render Playlists
+document.getElementById('playlistGrid').innerHTML = songs.map((s,i)=>`
+  <div class="card" onclick="playSong(${i})">
+    <img src="${s.img}"><h3>${s.playlist}</h3><p>Curated for you • ${s.artist}</p>
+  </div>`).join('');
+
+// Render Artists
+document.getElementById('artistGrid').innerHTML = artists.map(a=>`
+  <div class="artist-card"><img src="${a.img}"><h4>${a.name}</h4><p>Artist</p></div>`).join('');
+
+function playSong(index){
+  currentIndex = index;
+  let song = songs[index];
+  audio.src = song.src;
+  document.getElementById('currentTitle').textContent = song.title;
+  document.getElementById('currentArtist').textContent = song.artist;
+  document.getElementById('currentImg').src = song.img;
+  audio.play();
+  isPlaying = true;
+  playBtn.textContent = "⏸";
+  // waveform update
+  document.querySelectorAll('.wave').forEach(w=>w.classList.remove('playing'));
+  let w = document.getElementById('wave-'+index);
+  if(w) w.classList.add('playing');
+}
+
+playBtn.onclick = ()=>{
+  if(!audio.src){ playSong(0); return; }
+  if(isPlaying){ audio.pause(); playBtn.textContent="▶"; isPlaying=false; }
+  else{ audio.play(); playBtn.textContent="⏸"; isPlaying=true; }
+};
+
+document.getElementById('nextBtn').onclick = ()=> playSong((currentIndex+1)%songs.length);
+document.getElementById('prevBtn').onclick = ()=> playSong((currentIndex-1+songs.length)%songs.length);
+
+// HTML5 Audio API Event Listeners - Requirement
+audio.addEventListener('loadedmetadata', ()=>{
+  document.getElementById('duration').textContent = formatTime(audio.duration);
+  seekBar.max = Math.floor(audio.duration);
+});
+
+audio.addEventListener('timeupdate', ()=>{
+  document.getElementById('currentTime').textContent = formatTime(audio.currentTime);
+  seekBar.value = Math.floor(audio.currentTime);
+});
+
+audio.addEventListener('ended', ()=>{
+  console.log("Song ended, playing next");
+  playSong((currentIndex+1)%songs.length);
+});
+
+// Seek & Volume
+seekBar.addEventListener('input', ()=>{ audio.currentTime = seekBar.value; });
+volumeBar.addEventListener('input', ()=>{ audio.volume = volumeBar.value; });
+</script>
+</body>
+</html>
